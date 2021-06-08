@@ -4,12 +4,20 @@ import pickle
 import time
 import random
 
+# Конфигурация
+bot = telebot.TeleBot("TOKEN")
+admins_id = ("admin_id",)
+a = 10000        # всего деняг
+h = 500          # через сколько халвинг
+h_s = 2/3        # на сколько умножается каждый халвинг
+c_r = 227.8125   # сколько нужно тыков, чтобы набрать рубль
+
+# Функции для вычисления формул
+get_farm_cost = lambda r_b: h_s ** ((a // h - 1) - (r_b // h))
+get_rub_cost = lambda r_b: (c_r / 50000) * (1 / h_s) ** ((a // h - 1) - (r_b // h))
+
 wallets = dict()
 codes = dict()
-block = []
-bot = telebot.TeleBot("TOKEN")
-chanel_id = -1001303239825
-
 
 def read_file(name_file):
     with open((name_file + '.pickle'), 'rb') as f:
@@ -25,33 +33,21 @@ def save_file(var, name_file):
     with open(('backup/' + name_file + '_backup.pickle'), 'wb') as f:
         pickle.dump(var, f)
     f.close()
-
-
-def mega_hash(stringa):
-    sha = hashlib.sha256()
-    sha.update(str(stringa).encode('utf-8'))
-    hash_ = sha.hexdigest()
-    return hash_
-
-
-def check_block():
-    global block
-    if len(block) == 25:
-        bot.send_message(chanel_id, "\n".join([" ".join([str(j) for j in i]) for i in block]) )
-        block = [(mega_hash(block))]
-    save_file(block, "block")
  
-       
+
+# Получение адреса кошклька из id юзера   
 def get_wallet_adrees(n):
         shaa = hashlib.md5()
         shaa.update(str(n).encode('utf-8'))
         return shaa.hexdigest()
 
 
+# Случайная последовательность для пароля для кода
 def random_posled(n):
-    return "".join([random.choice(tuple("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")) for _ in range(n)])
+    return "".join([random.choice(tuple("abcdefghijkmnopqrstuvwxyz123456789ABCDEFGHJKLMNPQRSTUVWXYZ")) for _ in range(n)])
 
 
+# Класс кошелька
 class Wallet():
     def __init__(self, user_id, balance=0, is_rezerv=False):
         self.balance = balance
@@ -71,18 +67,16 @@ class Wallet():
             self.zhur.append(("Пополнение", from_.adrees, n))
     
     def send(self, to_, n):
-#        global block
         self.balance -= n
         to_.add(self, n)
         if self.adrees != "rezerv":
             self.zhur.append(("Перевод", to_.adrees, n))
-#        block.append(("Перевод", self.adrees, to_.adrees, n))
-#        check_block()
     
     def get_dict(self):
         return self.__dict__
 
 
+# Класс кода
 class Code:
     def __init__(self, from_, n, password):
         self.n = n
@@ -100,14 +94,14 @@ class Code:
         return self.__dict__
 
 
-def save_wallets(w, name="wallets"):
+def save_class(w, name):
     dict_wallets = dict()
     for k in w:
         dict_wallets[k] = w[k].get_dict()
     save_file(dict_wallets, name)
 
 
-def load_wallets(name="wallets"):
+def load_class(name):
     a = read_file(name)
     w = dict()
     for k in a:
@@ -120,18 +114,13 @@ def load_wallets(name="wallets"):
 wallets["rezerv"] = Wallet("rezerv", 10000, True)
 wallets["code"] = Wallet("code", 0, True)
 
-# save_wallets(codes, "codes")
-
 if True:
-    wallets = load_wallets()
-    block = read_file("block")
-    codes = load_wallets("codes")
+    wallets = load_class("wallets")
+    codes = load_class("codes")
 else:
     print(wallets)
-    save_wallets(wallets)
-    save_file(block, "block")
-    save_file(codes, "codes")
-# wallets["code"] = Wallet("code", 0, True)
+    save_class(wallets, "wallets")
+    save_class(codes, "codes")
 
 def send_message(*args, **kwargs):
     try:
@@ -149,9 +138,9 @@ def info(message):
 всего сейчас в резерве: {}
 1 туглик стоит {} рублей
 твой баланс сейчас: {}""".format(user_wallet.adrees,
-                                 round((2/3) ** (19 - (rezerv.balance // 500)), 5),
+                                 round(get_farm_cost(rezerv.balance), 5),
                                  round(rezerv.balance, 5),
-                                 round(0.0043895747599451305 * 1.5 ** (19 - (rezerv.balance // 500)), 5),
+                                 round(get_rub_cost(rezerv.balance), 5),
                                  round(user_wallet.balance, 5))
     send_message(message.chat.id, message_text, parse_mode="Markdown")
 
@@ -165,7 +154,7 @@ def start(message):
         user_wallet = Wallet(message.chat.id)
         wallets[user_wallet.adrees] = user_wallet
         
-    save_wallets(wallets)
+    save_class(wallets, "wallets")
     send_message(message.chat.id, """
 Это бот представляет собой типа блокчейн систему  криптовалюты
 Всего будет выпущено 10000 тугликов
@@ -197,7 +186,7 @@ def send(message):
         send_message(to_wallet.user_id, "Пришёл перевод на сумму {} от `{}`".format(n, my_wallet.adrees), parse_mode="Markdown")
     else:
         send_message(message.chat.id, "Сумма не та")
-    save_wallets(wallets)
+    save_class(wallets, "wallets")
 
 
 @bot.message_handler(commands=["farm"])
@@ -207,7 +196,7 @@ def farm(message):
         send_message(message.chat.id, "Денег нема")
     else:
         my_wallet = wallets[get_wallet_adrees(message.chat.id)]
-        n = (2/3) ** (19 - (rezerv.balance // 500))
+        n = get_farm_cost(rezerv.balance)
         try:
             if time.time() - my_wallet.last_farm <= (10/60):
                 my_wallet.sum_farm += n
@@ -228,12 +217,11 @@ def farm(message):
             my_wallet.sum_farm = n
         my_wallet.last_farm = time.time()
         
-    save_wallets(wallets)
+    save_class(wallets, "wallets")
 
 
 @bot.message_handler(commands=["log"])
 def log(message):
-#    send_message(message.chat.id, "по техпричинам не работает")
     my_wallet = wallets[get_wallet_adrees(message.chat.id)]
     log = reversed(my_wallet.zhur[:50])
     log = [" ".join([str(j) for j in i]) for i in log]
@@ -241,7 +229,6 @@ def log(message):
     if log == "":
         log = "История пуста"
     send_message(message.chat.id, log)
-#    bot.send_message(message.chat.id, "\n".join([" ".join([str(j) for j in my_wallet.zhur[-1*i]]) for i in range(50)]))
 
 
 @bot.message_handler(commands=["allow_log"])
@@ -253,7 +240,7 @@ def allow_log(message):
     else:
         my_wallet.allow_delete = False
         send_message(message.chat.id, "Включена отправка сообщений о фарме и выключено удаление сообщений")
-    save_wallets(wallets)
+    save_class(wallets, "wallets")
 
 
 @bot.message_handler(commands=["disable_key"])
@@ -277,7 +264,7 @@ def make_code(message):
         a = Code(my_wallet, n, ps)
         codes[a.code] = a
         send_message(message.chat.id, "Код: {}\nПароль: {}\nСохраните код и пароль!".format(a.code, ps))
-        save_wallets(codes, "codes")
+        save_class(codes, "codes")
     else:
         send_message(message.chat.id, "Неверная сумма")
 
@@ -314,23 +301,24 @@ def get_code(message):
             my_wallet = wallets[get_wallet_adrees(message.chat.id)]
             wallets["code"].send(my_wallet, code_.n)
             code_.is_active = False
-            save_wallets(wallets)
-            save_wallets(codes, "codes")
+            save_class(wallets, "wallets")
+            save_class(codes, "codes")
             send_message(message.chat.id, "Код подучен")
         else:
             send_message(message.chat.id, "Неверный пароль или код недействителен")
 
 
 @bot.message_handler(commands=["admin_info"])
-def hh(message):
-    try:
-        a = message.text.split()
-        b = wallets[a[1]]
-        dicr = b.__dict__.copy()
-    #    dicr["zhur"] = "..."
-        send_message(message.chat.id, str(dicr))
-    except:
-        pass
+def admin_info(message):
+    if message.chat.id in admins_id:
+        try:
+            a = message.text.split()
+            b = wallets[a[1]]
+            dicr = b.__dict__.copy()
+        #    dicr["zhur"] = "..."
+            send_message(message.chat.id, str(dicr))
+        except:
+            pass
 
 
 bot.polling()
