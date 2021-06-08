@@ -1,4 +1,5 @@
 import pickle
+import time
 
 
 def save_file(var, name_file):
@@ -10,8 +11,16 @@ def save_file(var, name_file):
     f.close()
 
 
+def save_wallets(w, name="wallets"):
+    dict_wallets = dict()
+    for k in w:
+        dict_wallets[k] = w[k].get_dict()
+    save_file(dict_wallets, name)
+
+
 wallets = dict()
 codes = dict()
+
 
 class Wallet():
     def __init__(self, user_id, balance=0, is_rezerv=False):
@@ -39,7 +48,10 @@ class Wallet():
             self.zhur.append(("Перевод", to_.adrees, n))
 #        block.append(("Перевод", self.adrees, to_.adrees, n))
 #        check_block()
-
+    
+    def get_dict(self):
+        return self.__dict__
+ 
 wallets["rezerv"] = Wallet("rezerv", 10000, True)
 wallets["code"] = Wallet("code", 0, True)
 
