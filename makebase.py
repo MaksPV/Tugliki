@@ -1,6 +1,7 @@
 import pickle
 import time
 
+a = 10000        # всего деняг
 
 def save_file(var, name_file):
     with open((name_file + '.pickle'), 'wb') as f:
@@ -52,7 +53,7 @@ class Wallet():
     def get_dict(self):
         return self.__dict__
  
-wallets["rezerv"] = Wallet("rezerv", 10000, True)
+wallets["rezerv"] = Wallet("rezerv", a, True)
 wallets["code"] = Wallet("code", 0, True)
 
 save_wallets(wallets)
